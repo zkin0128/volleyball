@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排球計分板 (慶祝版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --team-a-color: #3b82f6; /* 藍色 */
+            --team-b-color: #ef4444; /* 紅色 */
+            --bg-color: #1f2937;
+            --text-color: #ffffff;
+            --winner-color: #fbbf24; /* 金色 */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 { margin-bottom: 20px; font-size: 1.5rem; opacity: 0.8; }
+
+        /* 設定區塊 */
+        .settings {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            font-size: 1rem;
+            text-align: center;
+            width: 150px;
+        }
+
+        /* 計分主體 */
+        .scoreboard {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 800px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .team-card {
+            flex: 1;
+            min-width: 300px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            border-top: 5px solid transparent;
+            transition: all 0.3s ease;
+            overflow: hidden; /* 確保光效不溢出 */
+        }
+
+        .team-card.team-a { border-color: var(--team-a-color); }
+        .team-card.team-b { border-color: var(--team-b-color); }
+
+        /* 獲勝樣式 */
+        .team-card.winner-state {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(217, 119, 6, 0.4) 100%);
+            border-color: var(--winner-color) !important;
+            box-shadow: 0 0 30px rgba(251, 191, 36, 0.6);
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        /* 勝利標籤 */
+        .winner-badge {
+            display: none;
+            background-color: var(--winner-color);
+            color: #000;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .team-card.winner-state .winner-badge { display: block; }
+        .team-card.winner-state .team-name-display { color: var(--winner-color); }
+        .team-card.winner-state .score-display { color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .team-name-display {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-align: center;
+            min-height: 40px;
+        }
+
+        .score-display {
+            font-size: 8rem;
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            padding: 10px 0;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.1s;
+        }
+        
+        .score-display:active { transform: scale(0.95); }
+        .team-a .score-display { color: var(--team-a-color); }
+        .team-b .score-display { color: var(--team-b-color); }
+
+        .controls { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+
+        button {
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .btn-minus { background-color: #4b5563; color: white; }
+        .btn-minus:hover { background-color: #6b7280; }
+
+        .sets-display {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            background: rgba(0,0,0,0.3);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+        
+        .btn-set-add {
+            background-color: #10b981;
+            color: white;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
+        .global-actions { margin-top: 40px; display: flex; gap: 15px; }
+        .btn-action { padding: 12px 24px; font-size: 1.1rem; background-color: #8b5cf6; color: white; }
+        .btn-reset { background-color: #6b7280; }
+        .btn-new-set { background-color: #f59e0b; color: black; }
+        .hint { margin-top: 5px; font-size: 0.8rem; color: #9ca3af; }
+
+        @media (max-width: 650px) {
+            .scoreboard { flex-direction: column; align-items: center; }
+            .team-card { width: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏐 排球計分板</h1>
+
+    <div class="settings">
+        <input type="text" id="inputNameA" placeholder="左側隊名 (A)" oninput="updateNames()">
+        <button class="btn-action" onclick="swapSides()">🔄 交換場地</button>
+        <input type="text" id="inputNameB" placeholder="右側隊名 (B)" oninput="updateNames()">
+    </div>
+
+    <div class="scoreboard">
+        <div class="team-card team-a" id="cardA">
+            <div class="winner-badge">🏆 WINNER</div>
+            <div class="team-name-display" id="displayNameA">A 隊</div>
+            
+            <div class="score-display" id="scoreElA" onclick="addScore('A')" title="點擊加分">0</div>
+            <div class="hint">點擊數字加分</div>
+
+            <div class="controls">
+                <button class="btn-minus" onclick="subScore('A')">-1 分</button>
+            </div>
+
+            <div class="sets-display">
+                局數: <span id="setsA">0</span>
+                <button class="btn-set-add" onclick="addSet('A')">+1 局</button>
+            </div>
+        </div>
+
+        <div class="team-card team-b" id="cardB">
+            <div class="winner-badge">🏆 WINNER</div>
+            <div class="team-name-display" id="displayNameB">B 隊</div>
+            
+            <div class="score-display" id="scoreElB" onclick="addScore('B')" title="點擊加分">0</div>
+            <div class="hint">點擊數字加分</div>
+
+            <div class="controls">
+                <button class="btn-minus" onclick="subScore('B')">-1 分</button>
+            </div>
+
+            <div class="sets-display">
+                局數: <span id="setsB">0</span>
+                <button class="btn-set-add" onclick="addSet('B')">+1 局</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="global-actions">
+        <button class="btn-new-set" onclick="newSet()">下一局 (分數歸零)</button>
+        <button class="btn-reset" onclick="resetMatch()">整場重置</button>
+    </div>
+
+    <script>
+        // 初始化變數
+        let scoreA = 0;
+        let scoreB = 0;
+        let setsA = 0;
+        let setsB = 0;
+        let isSwapped = false; // false = A左B右, true = B左A右
+        let isGameOver = false; // 防止贏了之後還繼續加分(可選)
+
+        // DOM 元素
+        const elScoreA = document.getElementById('scoreElA');
+        const elScoreB = document.getElementById('scoreElB');
+        const elSetsA = document.getElementById('setsA');
+        const elSetsB = document.getElementById('setsB');
+        const inputA = document.getElementById('inputNameA');
+        const inputB = document.getElementById('inputNameB');
+        const displayA = document.getElementById('displayNameA');
+        const displayB = document.getElementById('displayNameB');
+        const cardA = document.getElementById('cardA');
+        const cardB = document.getElementById('cardB');
+
+        function updateNames() {
+            if (isSwapped) {
+                displayA.textContent = inputB.value || 'B 隊';
+                displayB.textContent = inputA.value || 'A 隊';
+            } else {
+                displayA.textContent = inputA.value || 'A 隊';
+                displayB.textContent = inputB.value || 'B 隊';
+            }
+        }
+
+        function updateDisplay() {
+            // 處理數字顯示
+            if (isSwapped) {
+                elScoreA.textContent = scoreB;
+                elSetsA.textContent = setsB;
+                elScoreB.textContent = scoreA;
+                elSetsB.textContent = setsA;
+            } else {
+                elScoreA.textContent = scoreA;
+                elSetsA.textContent = setsA;
+                elScoreB.textContent = scoreB;
+                elSetsB.textContent = setsB;
+            }
+            
+            // 每次更新都檢查是否有獲勝者
+            checkWinner();
+        }
+
+        // 檢查獲勝狀態 (核心邏輯)
+        function checkWinner() {
+            // 清除之前的獲勝樣式
+            cardA.classList.remove('winner-state');
+            cardB.classList.remove('winner-state');
+
+            // 取得當前在左邊和右邊的分數
+            let leftScore = parseInt(elScoreA.textContent);
+            let rightScore = parseInt(elScoreB.textContent);
+
+            // 獲勝條件：分數 >= 25 且 領先 >= 2 分
+            // 左邊贏
+            if (leftScore >= 25 && (leftScore - rightScore) >= 2) {
+                cardA.classList.add('winner-state');
+                triggerConfetti();
+            }
+            // 右邊贏
+            else if (rightScore >= 25 && (rightScore - leftScore) >= 2) {
+                cardB.classList.add('winner-state');
+                triggerConfetti();
+            }
+        }
+
+        // 觸發煙火特效
+        function triggerConfetti() {
+            // 隨機發射煙火
+            var duration = 3 * 1000;
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+            var random = function(min, max) {
+              return Math.random() * (max - min) + min;
+            };
+
+            var interval = setInterval(function() {
+              var timeLeft = animationEnd - Date.now();
+
+              if (timeLeft <= 0) {
+                return clearInterval(interval);
+              }
+
+              var particleCount = 50 * (timeLeft / duration);
+              // 兩個發射源，左右各一
+              confetti(Object.assign({}, defaults, { particleCount, origin: { x: random(0.1, 0.3), y: Math.random() - 0.2 } }));
+              confetti(Object.assign({}, defaults, { particleCount, origin: { x: random(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        function addScore(side) {
+            // 判斷邏輯
+            if (side === 'A') {
+                isSwapped ? scoreB++ : scoreA++;
+            } else {
+                isSwapped ? scoreA++ : scoreB++;
+            }
+            updateDisplay();
+        }
+
+        function subScore(side) {
+            if (side === 'A') {
+                if (isSwapped) { if(scoreB > 0) scoreB--; } 
+                else { if(scoreA > 0) scoreA--; }
+            } else {
+                if (isSwapped) { if(scoreA > 0) scoreA--; } 
+                else { if(scoreB > 0) scoreB--; }
+            }
+            updateDisplay();
+        }
+
+        function addSet(side) {
+            if (side === 'A') {
+                isSwapped ? setsB++ : setsA++;
+            } else {
+                isSwapped ? setsA++ : setsB++;
+            }
+            updateDisplay();
+        }
+
+        function swapSides() {
+            isSwapped = !isSwapped;
+            
+            // CSS 樣式交換
+            if (isSwapped) {
+                cardA.classList.remove('team-a'); cardA.classList.add('team-b');
+                cardB.classList.remove('team-b'); cardB.classList.add('team-a');
+            } else {
+                cardA.classList.remove('team-b'); cardA.classList.add('team-a');
+                cardB.classList.remove('team-a'); cardB.classList.add('team-b');
+            }
+
+            updateNames();
+            updateDisplay();
+        }
+
+        function newSet() {
+            if(confirm('確定要開始新的一局嗎？目前分數將歸零。')) {
+                scoreA = 0;
+                scoreB = 0;
+                cardA.classList.remove('winner-state'); // 清除獲勝狀態
+                cardB.classList.remove('winner-state');
+                updateDisplay();
+            }
+        }
+
+        function resetMatch() {
+            if(confirm('確定要重置整場比賽嗎？所有分數與局數將清空。')) {
+                scoreA = 0; scoreB = 0;
+                setsA = 0; setsB = 0;
+                cardA.classList.remove('winner-state');
+                cardB.classList.remove('winner-state');
+                updateDisplay();
+            }
+        }
+
+        // 初始化
+        updateNames();
+    </script>
+</body>
+</html>
